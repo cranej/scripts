@@ -1,3 +1,5 @@
+#!/usr/bin/env ruby
+
 require 'optparse'
 
 dest_dir = "generated"
