@@ -1,8 +1,9 @@
 #!/usr/bin/env ruby
 
 require 'optparse'
+require 'fileutils'
 
-dest_dir = "generated"
+dest_dir = "_build"
 base_dir = "."
 verbose = false
 to_docx = false
@@ -15,7 +16,7 @@ Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folde
     verbose = v
   end
 
-  opts.on("-d", "--destination-dir DIR", "destination output directory (default: ./generated)") do |d|
+  opts.on("-d", "--destination-dir DIR", "destination output directory (default: ./_build)") do |d|
     dest_dir = d.gsub("\\","/")
   end
 
@@ -73,6 +74,12 @@ end
 if f then
     generate_md.call f
 else
+    to_copy = ["_css","_images","_scripts"].select {|d| File.directory? d}
+    puts "Copying resources #{to_copy}..." if verbose and to_copy
+    to_copy.each do |r|
+        FileUtils.cp_r r,dest_dir
+    end
+        
     files_to_scan = "#{base_dir}/*.{md,markdown,adoc,asciidoc}"
     puts "Processing: #{files_to_scan}..." if verbose
     Dir.glob(files_to_scan) do |path|
