@@ -7,6 +7,10 @@ dest_dir = "_build"
 base_dir = "."
 verbose = false
 to_docx = false
+# I prefer not to load google web fonts and Awesome Fount by default.
+# Also disable footer
+adoc_opts = "-a iconfont-remote! -a webfonts! -a nofooter"
+pandoc_opts = ""
 OptionParser.new do |opts|
   opts.banner = %q(Usage: htmlG.rb [options] file -- process single file
 Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folder)
@@ -26,6 +30,20 @@ Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folde
 
   opts.on("-w", "--[no-]word", "generate docx instead of html") do |w|
     to_docx = w
+  end
+
+  opts.on("--adoc-opts OPTIONS", 
+          "add more options for underlying asciidoc processor 'asciidoctor'",
+          " can be used to overwrite default attributes or options.",
+          " Must be quoted if has spaces like \"-a noheader -a webfont\"") do |aopts|
+    adoc_opts = "#{adoc_opts} #{aopts}"
+  end
+
+  opts.on("--pandoc-opts OPTIONS",
+          "add more options for underlying markdown processor 'pandoc'",
+          " can be used to overwrite default options.",
+          " Must be quoted if has spaces like \"--toc -S\"") do |popts|
+    pandoc_opts = "#{pandoc_opts} #{popts}"
   end
 
   opts.on_tail("-h", "--help", "Show this message") do
@@ -50,12 +68,13 @@ generate_md = lambda do |file|
     output_file = "#{dest_dir}/#{base_name}.#{output_ext}"
 
     cmd = if [".md",".markdown"].include?(file_ext) then
-             "pandoc -t #{output_ext} -f markdown_github-hard_line_breaks+pandoc_title_block -s -o #{output_file} #{file}"
+             "pandoc -t #{output_ext} -f markdown_github-hard_line_breaks+pandoc_title_block #{pandoc_opts} -s -o #{output_file} #{file}"
           elsif [".adoc", ".asciidoc"].include?(file_ext)
+              asciidoctor_cmd = "asciidoctor #{adoc_opts} "
               if not to_docx then
-                  "asciidoctor -D #{dest_dir} #{file}"
+                  "#{asciidoctor_cmd} -D #{dest_dir} #{file}"
               else
-                  "asciidoctor -s -o - #{file} | pandoc -t #{output_ext} -f html -s -o #{output_file}"
+                  "#{asciidoctor_cmd} -s -o - #{file} | pandoc -t #{output_ext} -f html -s -o #{output_file}"
               end
           end
 
@@ -70,6 +89,9 @@ generate_md = lambda do |file|
         puts r
     end
 end
+
+puts "assciidoctor options: #{adoc_opts}" if verbose
+puts "pandoc options: #{pandoc_opts}" if verbose
 
 if f then
     generate_md.call f
