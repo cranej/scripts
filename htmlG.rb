@@ -61,9 +61,8 @@ if not File.directory?(dest_dir) then
     end
 end
 
-generate_md = lambda do |file|
-    file_ext = File.extname file
-    base_name = File.basename file,file_ext
+generate_md = lambda do |finfo|
+    (file, base_name, file_ext) = finfo
     output_ext = if not to_docx then "html" else "docx" end
     output_file = "#{dest_dir}/#{base_name}.#{output_ext}"
 
@@ -74,7 +73,7 @@ generate_md = lambda do |file|
               if not to_docx then
                   "#{asciidoctor_cmd} -D #{dest_dir} #{file}"
               else
-                  "#{asciidoctor_cmd} -s -o - #{file} | pandoc -t #{output_ext} -f html -s -o #{output_file}"
+                  "#{asciidoctor_cmd} -o - #{file} | pandoc -t #{output_ext} -f html -s -o #{output_file}"
               end
           end
 
@@ -90,11 +89,17 @@ generate_md = lambda do |file|
     end
 end
 
+def file_info(f)
+    file_ext = File.extname f
+    base_name = File.basename f,file_ext
+    [f, base_name, file_ext, File.mtime(f).strftime("%F")]
+end
+
 puts "assciidoctor options: #{adoc_opts}" if verbose
 puts "pandoc options: #{pandoc_opts}" if verbose
 
 if f then
-    generate_md.call f
+    generate_md.call(file_info(f))
 else
     to_copy = ["#{base_dir}/_css","#{base_dir}/_images","#{base_dir}/_scripts"].select {|d| File.directory? d}
     puts "Copying resources #{to_copy}..." if verbose and to_copy
@@ -104,7 +109,71 @@ else
         
     files_to_scan = "#{base_dir}/*.{md,markdown,adoc,asciidoc}"
     puts "Processing: #{files_to_scan}..." if verbose
-    Dir.glob(files_to_scan) do |path|
-        generate_md.call path
+
+    index_item_tpl = %{
+        <li>
+            <a class="item-link" href="@item-href">@item-title</a>
+        </li>}
+    index_page_tpl = %{
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Index</title>
+            <style>
+            .page-content \{
+                padding: 30px 0;
+                font-size: 16px;
+                line-height:1.5;
+                color: #111;
+            \}
+            .wrapper \{
+                max-width: 800px;
+                margin-right: auto;
+                margin-left: auto;
+            \}
+            .wrapper h2 \{
+                color: #424242;
+                padding-bottom: 10px;
+                border-bottom: grey solid 1px;
+            \}
+
+            ul.item-list \{
+                list-style: none;    
+                padding-left: 15px;
+            \}
+
+            .item-list > li \{
+            \}
+
+            .item-list .item-link \{
+                font-size: 18px;
+            \}
+            </style>
+        </head>
+        <body>
+            <div class="page-content">
+                <div class="wrapper">
+                    <h2> Documents </h2>
+                    <ul class="item-list">
+                    @items
+                    </ul>
+                </div>
+            </div>
+        </body
+        </html>
+    }
+
+    files_to_process = Dir.glob(files_to_scan).map {|f| file_info f}
+    if (not to_docx) and files_to_process then
+        index_items = files_to_process.map do |finfo|
+            (_,title,_,mtime) = finfo
+            index_item_tpl.gsub("@item-href", "#{title}.html").gsub("@item-title", title) 
+        end
+        index_page = index_page_tpl.gsub("@items", index_items.join("\n"))
+        File.write("#{dest_dir}/index.html", index_page)
+    end
+
+    files_to_process.each  do |finfo|
+        generate_md.call finfo 
     end
 end
