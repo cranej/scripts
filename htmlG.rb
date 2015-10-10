@@ -66,7 +66,7 @@ generate_md = lambda do |file|
 
     puts "Executing command: #{cmd}" if verbose
     r = `#{cmd}`
-    if r then
+    if r and r!="" then
         puts r
     end
 end
@@ -74,7 +74,7 @@ end
 if f then
     generate_md.call f
 else
-    to_copy = ["_css","_images","_scripts"].select {|d| File.directory? d}
+    to_copy = ["#{base_dir}/_css","#{base_dir}/_images","#{base_dir}/_scripts"].select {|d| File.directory? d}
     puts "Copying resources #{to_copy}..." if verbose and to_copy
     to_copy.each do |r|
         FileUtils.cp_r r,dest_dir
