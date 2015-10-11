@@ -2,7 +2,10 @@
 
 require 'optparse'
 require 'fileutils'
+require 'erb'
+require 'uri'
 
+version = "htmlG 0.1"
 dest_dir = "_build"
 base_dir = "."
 verbose = false
@@ -50,6 +53,11 @@ Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folde
         puts opts
         exit
   end
+  
+  opts.on_tail("--version", "Show version info") do
+        puts version
+        exit
+  end
 end.parse!
 
 f = ARGV.pop
@@ -62,7 +70,7 @@ if not File.directory?(dest_dir) then
 end
 
 generate_md = lambda do |finfo|
-    (file, base_name, file_ext) = finfo
+    (file, base_name, file_ext,_) = finfo
     output_ext = if not to_docx then "html" else "docx" end
     output_file = "#{dest_dir}/#{base_name}.#{output_ext}"
 
@@ -92,7 +100,8 @@ end
 def file_info(f)
     file_ext = File.extname f
     base_name = File.basename f,file_ext
-    [f, base_name, file_ext, File.mtime(f).strftime("%F")]
+    mtime = File.mtime f
+    [f, base_name, file_ext,  mtime]
 end
 
 puts "assciidoctor options: #{adoc_opts}" if verbose
@@ -112,6 +121,7 @@ else
 
     index_item_tpl = %{
         <li>
+            <span class="item-meta" title="@item-meta-tip">@item-meta</span>
             <a class="item-link" href="@item-href">@item-title</a>
         </li>}
     index_page_tpl = %{
@@ -120,6 +130,10 @@ else
         <head>
             <title>Index</title>
             <style>
+            body \{
+                font-family: Helvetica, Arial, sans-serif;
+                font-weight: 300;
+            \}
             .page-content \{
                 padding: 30px 0;
                 font-size: 16px;
@@ -135,11 +149,15 @@ else
                 color: #424242;
                 padding-bottom: 10px;
                 border-bottom: grey solid 1px;
+                font-size: 22px;
+                line-height: 56px;
+                letter-spacing: -1px;
             \}
 
             ul.item-list \{
                 list-style: none;    
                 padding-left: 15px;
+                min-height: 400px;
             \}
 
             .item-list > li \{
@@ -147,6 +165,17 @@ else
 
             .item-list .item-link \{
                 font-size: 18px;
+                margin-left: 15px;
+            \}
+            .item-list .item-meta \{
+                font-size: 14px;
+                color: #828282;
+                display: inline-block;
+                width: 100px;
+            \}
+            .wrapper .page-meta \{
+                border-top: grey solid 1px;
+                text-align: right;
             \}
             </style>
         </head>
@@ -157,17 +186,27 @@ else
                     <ul class="item-list">
                     @items
                     </ul>
+                    <div class="page-meta">Powered by htmlG</div>
                 </div>
             </div>
         </body
         </html>
     }
 
-    files_to_process = Dir.glob(files_to_scan).map {|f| file_info f}
+    files_to_process = Dir.glob(files_to_scan).map {|f| file_info f}.sort do |a,b| 
+        (_,_,_,a_mtime) = a 
+        (_,_,_,b_mtime) = b
+        b_mtime <=> a_mtime
+    end
+    
     if (not to_docx) and files_to_process then
         index_items = files_to_process.map do |finfo|
             (_,title,_,mtime) = finfo
-            index_item_tpl.gsub("@item-href", "#{title}.html").gsub("@item-title", title) 
+            index_item_tpl
+                .gsub("@item-href", URI::encode("#{title}.html"))
+                .gsub("@item-title", ERB::Util.h(title))
+                .gsub("@item-meta-tip", ERB::Util.h(mtime.strftime("%T")))
+                .gsub("@item-meta", ERB::Util.h(mtime.strftime("%b %-d, %Y")))
         end
         index_page = index_page_tpl.gsub("@items", index_items.join("\n"))
         File.write("#{dest_dir}/index.html", index_page)
