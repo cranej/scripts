@@ -1,0 +1,36 @@
+= Scripts
+Crane Jin
+
+Random scripts for daily work or fun. 
+
+== htmlG.rb
+
+Glue script to translate `markdown` or `asciidoc` documents to `html` or `docx`. 
+
+=== Prerequisites
+* To process `markdwon`, `pandoc` must be installed and in PATH
+* To process `asciidoc`, `asciidoctor` must be installed and in PATH
+* To convert `asciidoc` to `docx`, both `pandoc` and `asciidoctor` must be installed and in PATH 
+
+=== Usage
+[source,console]
+----
+Usage: htmlG.rb [options] file -- process single file  //<1>
+Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folder  //<2>
+
+    -v, --[no-]verbose               Run verbosely
+    -d, --destination-dir DIR        destination output directory (default: ./_build)
+    -b, --base-dir DIR               base directory containing files to process (default: .)
+    -w, --[no-]word                  generate docx instead of html
+        --adoc-opts OPTIONS          add more options for underlying asciidoc processor 'asciidoctor'
+                                      can be used to overwrite default attributes or options.
+                                      Must be quoted if has spaces like "-a noheader -a webfont"
+        --pandoc-opts OPTIONS        add more options for underlying markdown processor 'pandoc'
+                                      can be used to overwrite default options.
+                                      Must be quoted if has spaces like "--toc -S"
+    -h, --help                       Show this message
+        --version                    Show version info
+----
+<1> Process the single file.
+<2> `index.html` will be generated in `dest_dir`
+
