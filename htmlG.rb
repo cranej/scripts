@@ -4,6 +4,8 @@ require 'optparse'
 require 'fileutils'
 require 'erb'
 require 'uri'
+require 'yaml'
+require 'ostruct'
 
 version = "htmlG 0.1"
 dest_dir = "_build"
@@ -70,7 +72,9 @@ if not File.directory?(dest_dir) then
 end
 
 generate_md = lambda do |finfo|
-    (file, base_name, file_ext,_) = finfo
+    file = finfo.fullname
+    base_name = finfo.basename
+    file_ext = finfo.extname
     output_ext = if not to_docx then "html" else "docx" end
     output_file = "#{dest_dir}/#{base_name}.#{output_ext}"
 
@@ -101,7 +105,7 @@ def file_info(f)
     file_ext = File.extname f
     base_name = File.basename f,file_ext
     mtime = File.mtime f
-    [f, base_name, file_ext,  mtime]
+    OpenStruct.new(:fullname=> f, :basename=>base_name, :extname=>file_ext, :mtime=>mtime)
 end
 
 puts "assciidoctor options: #{adoc_opts}" if verbose
@@ -192,16 +196,25 @@ else
         </body
         </html>
     }
-
-    files_to_process = Dir.glob(files_to_scan).map {|f| file_info f}.sort do |a,b| 
-        (_,_,_,a_mtime) = a 
-        (_,_,_,b_mtime) = b
-        b_mtime <=> a_mtime
-    end
     
-    if (not to_docx) and files_to_process then
-        index_items = files_to_process.map do |finfo|
-            (_,title,_,mtime) = finfo
+    build_log_file = "#{dest_dir}/_build.yaml"
+    build_log = if File.file? build_log_file then YAML.load(File.read build_log_file) else {} end
+    files_with_ptime = 
+        Dir.glob(files_to_scan).map do |f|
+            finfo = file_info f
+            finfo.ptime = (build_log[finfo.basename] or Time.new(1900))
+            finfo
+        end
+        .sort do |a,b| 
+            b.mtime <=> a.mtime
+        end
+
+    files_to_process = files_with_ptime.select {|finfo| finfo.mtime >= finfo.ptime}
+    # TODO: if there is source files deleted, also need to rebuild index 
+    if (not to_docx) and (not files_to_process.empty?) then
+        index_items = files_with_ptime.map do |finfo|
+            title = finfo.basename
+            mtime = finfo.mtime
             index_item_tpl
                 .gsub("@item-href", URI::encode("#{title}.html"))
                 .gsub("@item-title", ERB::Util.h(title))
@@ -210,9 +223,17 @@ else
         end
         index_page = index_page_tpl.gsub("@items", index_items.join("\n"))
         File.write("#{dest_dir}/index.html", index_page)
+        puts "Index file generated." if verbose
     end
+
+    new_build_log = 
+        Hash[files_with_ptime.collect {|finfo| [finfo.basename, finfo.ptime]}]
+        .merge!(Hash[files_to_process.collect {|finfo| [finfo.basename, Time.now]}])
 
     files_to_process.each  do |finfo|
         generate_md.call finfo 
+        puts "Processed file #{finfo.fullname}." if verbose
     end
+
+    File.write build_log_file,YAML.dump(new_build_log)
 end
