@@ -118,64 +118,64 @@ else
     files_to_scan = "#{base_dir}/*.{md,markdown,adoc,asciidoc}"
     puts "Processing: #{files_to_scan}..." if verbose
 
-    index_item_tpl = %{
+    index_item_tpl = %(
         <li>
             <span class="item-meta" title="@item-meta-tip">@item-meta</span>
             <a class="item-link" href="@item-href">@item-title</a>
-        </li>}
-    index_page_tpl = %{
+        </li>)
+    index_page_tpl = %(
         <!DOCTYPE html>
         <html>
         <head>
             <title>Index</title>
             <style>
-            body \{
+            body {
                 font-family: Helvetica, Arial, sans-serif;
                 font-weight: 300;
-            \}
-            .page-content \{
+            }
+            .page-content {
                 padding: 30px 0;
                 font-size: 16px;
                 line-height:1.5;
                 color: #111;
-            \}
-            .wrapper \{
+            }
+            .wrapper {
                 max-width: 800px;
                 margin-right: auto;
                 margin-left: auto;
-            \}
-            .wrapper h2 \{
+            }
+            .wrapper h2 {
                 color: #424242;
                 padding-bottom: 10px;
                 border-bottom: grey solid 1px;
                 font-size: 22px;
                 line-height: 56px;
                 letter-spacing: -1px;
-            \}
+            }
 
-            ul.item-list \{
+            ul.item-list {
                 list-style: none;    
                 padding-left: 15px;
                 min-height: 400px;
-            \}
+            }
 
-            .item-list > li \{
-            \}
+            .item-list > li {
+            }
 
-            .item-list .item-link \{
+            .item-list .item-link {
                 font-size: 18px;
                 margin-left: 15px;
-            \}
-            .item-list .item-meta \{
+            }
+            .item-list .item-meta {
                 font-size: 14px;
                 color: #828282;
                 display: inline-block;
                 width: 100px;
-            \}
-            .wrapper .page-meta \{
+            }
+            .wrapper .page-meta {
                 border-top: grey solid 1px;
                 text-align: right;
-            \}
+            }
             </style>
         </head>
         <body>
@@ -190,7 +190,7 @@ else
             </div>
         </body
         </html>
-    }
+    )
     
     build_log_file = "#{dest_dir}/_build.yaml"
     build_log = if File.file? build_log_file then YAML.load(File.read build_log_file) else {} end
