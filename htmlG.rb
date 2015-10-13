@@ -114,12 +114,7 @@ puts "pandoc options: #{pandoc_opts}" if verbose
 if f then
     generate_md.call(file_info(f))
 else
-    to_copy = ["#{base_dir}/_css","#{base_dir}/_images","#{base_dir}/_scripts"].select {|d| File.directory? d}
-    puts "Copying resources #{to_copy}..." if verbose and to_copy
-    to_copy.each do |r|
-        FileUtils.cp_r r,dest_dir
-    end
-        
+       
     files_to_scan = "#{base_dir}/*.{md,markdown,adoc,asciidoc}"
     puts "Processing: #{files_to_scan}..." if verbose
 
@@ -199,41 +194,52 @@ else
     
     build_log_file = "#{dest_dir}/_build.yaml"
     build_log = if File.file? build_log_file then YAML.load(File.read build_log_file) else {} end
+    this_processing_time = Time.now
     files_with_ptime = 
         Dir.glob(files_to_scan).map do |f|
             finfo = file_info f
-            finfo.ptime = (build_log[finfo.basename] or Time.new(1900))
+            finfo.ptime = (build_log[finfo.basename] or nil)
             finfo
         end
         .sort do |a,b| 
             b.mtime <=> a.mtime
         end
 
-    files_to_process = files_with_ptime.select {|finfo| finfo.mtime >= finfo.ptime}
-    # TODO: if there is source files deleted, also need to rebuild index 
-    if (not to_docx) and (not files_to_process.empty?) then
-        index_items = files_with_ptime.map do |finfo|
-            title = finfo.basename
-            mtime = finfo.mtime
-            index_item_tpl
-                .gsub("@item-href", URI::encode("#{title}.html"))
-                .gsub("@item-title", ERB::Util.h(title))
-                .gsub("@item-meta-tip", ERB::Util.h(mtime.strftime("%T")))
-                .gsub("@item-meta", ERB::Util.h(mtime.strftime("%b %-d, %Y")))
+    files_to_process = files_with_ptime.select {|finfo| finfo.ptime.nil? or finfo.ptime < finfo.mtime}
+    same_files_set = files_with_ptime.collect {|finfo| finfo.basename}.sort == build_log.keys.sort
+    
+    if ((not files_to_process.empty?) or (not same_files_set)) then
+        to_copy = ["#{base_dir}/_css","#{base_dir}/_images","#{base_dir}/_scripts"].select {|d| File.directory? d}
+        puts "Copying resources #{to_copy}..." if verbose and to_copy
+        to_copy.each do |r|
+            FileUtils.cp_r r,dest_dir
         end
-        index_page = index_page_tpl.gsub("@items", index_items.join("\n"))
-        File.write("#{dest_dir}/index.html", index_page)
-        puts "Index file generated." if verbose
+
+        new_build_log = 
+            Hash[files_with_ptime.collect {|finfo| [finfo.basename, finfo.ptime]}]
+            .merge!(Hash[files_to_process.collect {|finfo| [finfo.basename, this_processing_time]}])
+        
+        File.write build_log_file,YAML.dump(new_build_log)
+        puts "Build log generated." if verbose
+
+        files_to_process.each  do |finfo|
+            generate_md.call finfo 
+            puts "Processed file #{finfo.fullname}." if verbose
+        end
+
+        if (not to_docx) then
+            index_items = files_with_ptime.map do |finfo|
+                title = finfo.basename
+                mtime = finfo.mtime
+                index_item_tpl
+                    .gsub("@item-href", URI::encode("#{title}.html"))
+                    .gsub("@item-title", ERB::Util.h(title))
+                    .gsub("@item-meta-tip", ERB::Util.h(mtime.strftime("%T")))
+                    .gsub("@item-meta", ERB::Util.h(mtime.strftime("%b %-d, %Y")))
+            end
+            index_page = index_page_tpl.gsub("@items", index_items.join("\n"))
+            File.write("#{dest_dir}/index.html", index_page)
+            puts "Index file generated." if verbose
+        end
     end
-
-    new_build_log = 
-        Hash[files_with_ptime.collect {|finfo| [finfo.basename, finfo.ptime]}]
-        .merge!(Hash[files_to_process.collect {|finfo| [finfo.basename, Time.now]}])
-
-    files_to_process.each  do |finfo|
-        generate_md.call finfo 
-        puts "Processed file #{finfo.fullname}." if verbose
-    end
-
-    File.write build_log_file,YAML.dump(new_build_log)
 end
