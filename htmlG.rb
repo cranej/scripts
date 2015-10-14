@@ -16,6 +16,8 @@ to_docx = false
 # Also disable footer
 adoc_opts = "-a iconfont-remote! -a webfonts! -a nofooter"
 pandoc_opts = ""
+force = false
+
 OptionParser.new do |opts|
   opts.banner = %q(Usage: htmlG.rb [options] file -- process single file
 Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folder)
@@ -49,6 +51,10 @@ Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folde
           " can be used to overwrite default options.",
           " Must be quoted if has spaces like \"--toc -S\"") do |popts|
     pandoc_opts = "#{pandoc_opts} #{popts}"
+  end
+
+  opts.on("--[no-]force", "when running in batch mode, ignore build log and reprocess all files") do |v|
+    force = v
   end
 
   opts.on_tail("-h", "--help", "Show this message") do
@@ -193,7 +199,7 @@ else
     )
     
     build_log_file = "#{dest_dir}/_build.yaml"
-    build_log = if File.file? build_log_file then YAML.load(File.read build_log_file) else {} end
+    build_log = if File.file? build_log_file and (not force) then YAML.load(File.read build_log_file) else {} end
     this_processing_time = Time.now
     files_with_ptime = 
         Dir.glob(files_to_scan).map do |f|
