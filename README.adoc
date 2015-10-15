@@ -15,11 +15,10 @@ Glue script to translate `markdown` or `asciidoc` documents to `html` or `docx`.
 === Usage
 [source,console]
 ----
-Usage: htmlG.rb [options] file 
-       process single file  //<1>
-          
-Usage: htmlG.rb [options] 
-       process all markdown and asciidoc files under folder  //<2>
+Usage: htmlG.rb [options] file  <1> 
+            -- process single file 
+Usage: htmlG.rb [options]  <2> 
+            -- process all markdown and asciidoc files under folder
 
     -v, --[no-]verbose               Run verbosely
     -d, --destination-dir DIR        destination output directory (default: ./_build)
@@ -31,6 +30,13 @@ Usage: htmlG.rb [options]
         --pandoc-opts OPTIONS        add more options for underlying markdown processor 'pandoc'
                                       can be used to overwrite default options.
                                       Must be quoted if has spaces like "--toc -S"
+        --[no-]force                 when running in batch mode, ignore build log and reprocess all files
+        --[no-]blog                  when running in batch mode, activate blog mode
+                                        when generating index page:
+                                        1. Use time stamp from file name '2015-01-01-title..'.
+                                        2. Handle 'xxxx-xx-xx-about.adoc' specially:
+                                             A 'about' link will be added to footer
+                                             instead of being included on article list
     -h, --help                       Show this message
         --version                    Show version info
 ----
