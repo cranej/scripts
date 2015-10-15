@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
-
 require 'optparse'
 require 'fileutils'
 require 'erb'
 require 'uri'
 require 'yaml'
 require 'ostruct'
+include ERB::Util
 
 version = "htmlG 0.1"
 dest_dir = "_build"
@@ -17,7 +17,6 @@ to_docx = false
 adoc_opts = "-a iconfont-remote! -a webfonts! -a nofooter"
 pandoc_opts = ""
 force = false
-
 OptionParser.new do |opts|
   opts.banner = %q(Usage: htmlG.rb [options] file -- process single file
 Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folder)
@@ -110,8 +109,8 @@ end
 def file_info(f)
     file_ext = File.extname f
     base_name = File.basename f,file_ext
-    mtime = File.mtime f
-    OpenStruct.new(:fullname=> f, :basename=>base_name, :extname=>file_ext, :mtime=>mtime)
+    timestamp = File.mtime f
+    OpenStruct.new(:fullname=> f, :basename=>base_name, :extname=>file_ext, :timestamp=>timestamp)
 end
 
 puts "assciidoctor options: #{adoc_opts}" if verbose
@@ -124,80 +123,6 @@ else
     files_to_scan = "#{base_dir}/*.{md,markdown,adoc,asciidoc}"
     puts "Processing: #{files_to_scan}..." if verbose
 
-    index_item_tpl = %(
-        <li>
-            <span class="item-meta" title="@item-meta-tip">@item-meta</span>
-            <a class="item-link" href="@item-href">@item-title</a>
-        </li>)
-    index_page_tpl = %(
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Index</title>
-            <style>
-            body {
-                font-family: Helvetica, Arial, sans-serif;
-                font-weight: 300;
-            }
-            .page-content {
-                padding: 30px 0;
-                font-size: 16px;
-                line-height:1.5;
-                color: #111;
-            }
-            .wrapper {
-                max-width: 800px;
-                margin-right: auto;
-                margin-left: auto;
-            }
-            .wrapper h2 {
-                color: #424242;
-                padding-bottom: 10px;
-                border-bottom: grey solid 1px;
-                font-size: 22px;
-                line-height: 56px;
-                letter-spacing: -1px;
-            }
-
-            ul.item-list {
-                list-style: none;    
-                padding-left: 15px;
-                min-height: 400px;
-            }
-
-            .item-list > li {
-            }
-
-            .item-list .item-link {
-                font-size: 18px;
-                margin-left: 15px;
-            }
-            .item-list .item-meta {
-                font-size: 14px;
-                color: #828282;
-                display: inline-block;
-                width: 100px;
-            }
-            .wrapper .page-meta {
-                border-top: grey solid 1px;
-                text-align: right;
-            }
-            </style>
-        </head>
-        <body>
-            <div class="page-content">
-                <div class="wrapper">
-                    <h2> Documents </h2>
-                    <ul class="item-list">
-                    @items
-                    </ul>
-                    <div class="page-meta">Powered by htmlG</div>
-                </div>
-            </div>
-        </body
-        </html>
-    )
-    
     build_log_file = "#{dest_dir}/_build.yaml"
     build_log = if File.file? build_log_file and (not force) then YAML.load(File.read build_log_file) else {} end
     this_processing_time = Time.now
@@ -208,10 +133,10 @@ else
             finfo
         end
         .sort do |a,b| 
-            b.mtime <=> a.mtime
+            b.timestamp <=> a.timestamp
         end
 
-    files_to_process = files_with_ptime.select {|finfo| finfo.ptime.nil? or finfo.ptime < finfo.mtime}
+    files_to_process = files_with_ptime.select {|finfo| finfo.ptime.nil? or finfo.ptime < finfo.timestamp}
     same_files_set = files_with_ptime.collect {|finfo| finfo.basename}.sort == build_log.keys.sort
     
     if ((not files_to_process.empty?) or (not same_files_set)) then
@@ -234,18 +159,104 @@ else
         end
 
         if (not to_docx) then
-            index_items = files_with_ptime.map do |finfo|
-                title = finfo.basename
-                mtime = finfo.mtime
-                index_item_tpl
-                    .gsub("@item-href", URI::encode("#{title}.html"))
-                    .gsub("@item-title", ERB::Util.h(title))
-                    .gsub("@item-meta-tip", ERB::Util.h(mtime.strftime("%T")))
-                    .gsub("@item-meta", ERB::Util.h(mtime.strftime("%b %-d, %Y")))
+            class IndexData
+                attr_accessor :title,:item_list
+                def initialize(items, title = "Documents")
+                    @item_list = items
+                    @title = title
+                end
+
+                def get_binding
+                    binding()
+                end
             end
-            index_page = index_page_tpl.gsub("@items", index_items.join("\n"))
+            index_page_tpl = ERB.new(DATA.read) 
+            index_items = files_with_ptime.map do |finfo|
+                {
+                    :text => finfo.basename,
+                    :href => "#{finfo.basename}.html",
+                    :meta_tip => finfo.timestamp.strftime("%T"),
+                    :meta_text => finfo.timestamp.strftime("%b %-d, %Y")
+                }
+            end
+
+            index_data = IndexData.new(index_items.to_a)
+            index_page = index_page_tpl.result(index_data.get_binding)
             File.write("#{dest_dir}/index.html", index_page)
             puts "Index file generated." if verbose
         end
     end
 end
+
+__END__
+<!DOCTYPE html>
+<html>
+<head>
+<title><%= @title %></title>
+<style>
+body {
+    font-family: Helvetica, Arial, sans-serif;
+    font-weight: 300;
+}
+.page-content {
+    padding: 30px 0;
+    font-size: 16px;
+    line-height:1.5;
+    color: #111;
+}
+.wrapper {
+    max-width: 800px;
+    margin-right: auto;
+    margin-left: auto;
+}
+.wrapper h2 {
+    color: #424242;
+    padding-bottom: 10px;
+    border-bottom: grey solid 1px;
+    font-size: 22px;
+    line-height: 56px;
+    letter-spacing: -1px;
+}
+
+ul.item-list {
+    list-style: none;    
+    padding-left: 15px;
+    min-height: 400px;
+}
+
+.item-list > li {
+}
+
+.item-list .item-link {
+    font-size: 18px;
+    margin-left: 15px;
+}
+.item-list .item-meta {
+    font-size: 14px;
+    color: #828282;
+        display: inline-block;
+    width: 100px;
+}
+.wrapper .page-meta {
+    border-top: grey solid 1px;
+    text-align: right;
+}
+</style>
+</head>
+<body>
+    <div class="page-content">
+        <div class="wrapper">
+            <h2> <%= @title %> </h2>
+            <ul class="item-list">
+                <% for @item in @item_list %>
+                    <li>
+                        <span class="item-meta" title="<%= @item[:meta_tip] %>"><%= h @item[:meta_text] %></span>
+                        <a class="item-link" href="<%= u @item[:href] %>"><%= h @item[:text] %></a>
+                    </li>
+                <% end %>
+            </ul>
+            <div class="page-meta">Powered by htmlG</div>
+        </div>
+    </div>
+</body
+</html>
