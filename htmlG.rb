@@ -7,7 +7,7 @@ require 'yaml'
 require 'ostruct'
 include ERB::Util
 
-version = "htmlG 0.1"
+version = "htmlG 0.5"
 dest_dir = "_build"
 base_dir = "."
 verbose = false
@@ -17,6 +17,7 @@ to_docx = false
 adoc_opts = "-a iconfont-remote! -a webfonts! -a nofooter"
 pandoc_opts = ""
 force = false
+blog_mode = false 
 OptionParser.new do |opts|
   opts.banner = %q(Usage: htmlG.rb [options] file -- process single file
 Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folder)
@@ -56,6 +57,16 @@ Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folde
     force = v
   end
 
+  opts.on("--[no-]blog", 
+          "when running in batch mode, activate blog mode",
+          "   when generating index page:",
+          "   1. Use time stamp from file name '2015-01-01-title..'.",
+          "   2. Handle 'xxxx-xx-xx-about.adoc' specially:",
+          "        A 'about' link will be added to footer",
+          "        instead of being included on article list") do |v|
+    blog_mode = v
+  end
+
   opts.on_tail("-h", "--help", "Show this message") do
         puts opts
         exit
@@ -66,6 +77,8 @@ Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folde
         exit
   end
 end.parse!
+
+if blog_mode then to_docx = false end
 
 f = ARGV.pop
 
@@ -109,8 +122,8 @@ end
 def file_info(f)
     file_ext = File.extname f
     base_name = File.basename f,file_ext
-    timestamp = File.mtime f
-    OpenStruct.new(:fullname=> f, :basename=>base_name, :extname=>file_ext, :timestamp=>timestamp)
+    mtime = File.mtime f
+    OpenStruct.new(:fullname=> f, :basename=>base_name, :extname=>file_ext, :mtime=>mtime)
 end
 
 puts "assciidoctor options: #{adoc_opts}" if verbose
@@ -130,13 +143,30 @@ else
         Dir.glob(files_to_scan).map do |f|
             finfo = file_info f
             finfo.ptime = (build_log[finfo.basename] or nil)
+            finfo.title = finfo.basename.gsub("-", " ").capitalize
+            finfo.timestamp = finfo.mtime 
             finfo
         end
-        .sort do |a,b| 
-            b.timestamp <=> a.timestamp
-        end
 
-    files_to_process = files_with_ptime.select {|finfo| finfo.ptime.nil? or finfo.ptime < finfo.timestamp}
+    p = /(^\d{4}-(?:0[1-9]|10|11|12)-(?:0[1-9]|[1,2][0-9]|3[0,1]))-(.+)/
+    files_with_ptime = 
+        files_with_ptime.map do |finfo|
+            if blog_mode then 
+                m = p.match(finfo.basename)
+                if m.nil? then 
+                    finfo.title = nil
+                    finfo.timestamp = nil
+                else
+                    finfo.title = m[2].gsub("-"," ").capitalize
+                    finfo.timestamp = Date.strptime(m[1]).to_time
+                end
+            end
+            finfo
+        end
+        .select {|finfo| not finfo.title.nil?}
+        .sort {|a,b| b.timestamp <=> a.timestamp}
+    
+    files_to_process = files_with_ptime.select {|finfo| finfo.ptime.nil? or finfo.ptime < finfo.mtime}
     same_files_set = files_with_ptime.collect {|finfo| finfo.basename}.sort == build_log.keys.sort
     
     if ((not files_to_process.empty?) or (not same_files_set)) then
@@ -160,9 +190,10 @@ else
 
         if (not to_docx) then
             class IndexData
-                attr_accessor :title,:item_list
-                def initialize(items, title = "Documents")
+                attr_accessor :title,:item_list,:about_item
+                def initialize(items, about_item, title = "Documents")
                     @item_list = items
+                    @about_item = about_item
                     @title = title
                 end
 
@@ -173,14 +204,19 @@ else
             index_page_tpl = ERB.new(DATA.read) 
             index_items = files_with_ptime.map do |finfo|
                 {
-                    :text => finfo.basename,
+                    :item_title => finfo.title,
                     :href => "#{finfo.basename}.html",
-                    :meta_tip => finfo.timestamp.strftime("%T"),
+                    :meta_tip => finfo.mtime.strftime("%T"),
                     :meta_text => finfo.timestamp.strftime("%b %-d, %Y")
                 }
             end
-
-            index_data = IndexData.new(index_items.to_a)
+            about_page_item = 
+                if blog_mode then
+                    index_items.delete_at(index_items.find_index{|item| item[:item_title].downcase == "about"})
+                else
+                    nil
+                end
+            index_data = IndexData.new(index_items.to_a, about_page_item)
             index_page = index_page_tpl.result(index_data.get_binding)
             File.write("#{dest_dir}/index.html", index_page)
             puts "Index file generated." if verbose
@@ -237,9 +273,24 @@ ul.item-list {
         display: inline-block;
     width: 100px;
 }
-.wrapper .page-meta {
-    border-top: grey solid 1px;
+.page-meta {
+    max-width: 800px;
+    margin-right: auto;
+    margin-left: auto;
+    padding-top: 5px;
+    border-top-color: grey;
+    border-top-width: 1px;
+    border-top-style: solid;
+    font-size: 0.7em;
     text-align: right;
+}
+
+.page-meta a {
+    text-decoration: none;
+}
+
+.page-meta .tool {
+    display:inline-block;
 }
 </style>
 </head>
@@ -251,11 +302,18 @@ ul.item-list {
                 <% for @item in @item_list %>
                     <li>
                         <span class="item-meta" title="<%= @item[:meta_tip] %>"><%= h @item[:meta_text] %></span>
-                        <a class="item-link" href="<%= u @item[:href] %>"><%= h @item[:text] %></a>
+                        <a class="item-link" href="<%= u @item[:href] %>"><%= h @item[:item_title] %></a>
                     </li>
                 <% end %>
             </ul>
-            <div class="page-meta">Powered by htmlG</div>
+        </div>
+        <div class="page-meta">
+            <div class="about-link">
+                <% if @about_item then %>
+                    <a href="<%= u @about_item[:href] %>">about | </a>
+                <% end %>
+                <div class="tool">Powered by <a target="_blank" href="https://github.com/cranej/scripts">htmlG</a></div>
+            </div>
         </div>
     </div>
 </body
