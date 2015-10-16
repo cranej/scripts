@@ -247,6 +247,7 @@ __END__
 <html>
 <head>
 <title><%= @title %></title>
+<meta charset="utf-8" />
 <style>
 body {
     font-family: Helvetica, Arial, sans-serif;
