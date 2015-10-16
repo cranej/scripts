@@ -18,14 +18,17 @@ adoc_opts = "-a iconfont-remote! -a webfonts! -a nofooter"
 pandoc_opts = ""
 force = false
 blog_mode = false 
+index_title = nil
 OptionParser.new do |opts|
-  opts.banner = %q(Usage: htmlG.rb [options] file -- process single file
-Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folder)
+  opts.banner = 
+%q(Generate html file(s) from markdown or asciidoc.
+Usage: htmlG.rb [options] file 
+            process single file
+Usage: htmlG.rb [options] 
+            batch mode, process all markdown and asciidoc files under folder)
 
   opts.separator ""
-  opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
-    verbose = v
-  end
+  opts.separator "Common options:"
 
   opts.on("-d", "--destination-dir DIR", "destination output directory (default: ./_build)") do |d|
     dest_dir = d.gsub("\\","/")
@@ -52,6 +55,9 @@ Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folde
           " Must be quoted if has spaces like \"--toc -S\"") do |popts|
     pandoc_opts = "#{pandoc_opts} #{popts}"
   end
+  
+  opts.separator ""
+  opts.separator "Batch mode specified options:"
 
   opts.on("--[no-]force", "when running in batch mode, ignore build log and reprocess all files") do |v|
     force = v
@@ -65,6 +71,17 @@ Usage: htmlG.rb [options] -- process all markdown and asciidoc files under folde
           "        A 'about' link will be added to footer",
           "        instead of being included on article list") do |v|
     blog_mode = v
+  end
+
+  opts.on("--index-title TITLE", "When runing in batch mode, set the title of index page.") do |t|
+    index_title = t
+  end
+
+  opts.separator ""
+  opts.separator "Other options:"
+
+  opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
+    verbose = v
   end
 
   opts.on_tail("-h", "--help", "Show this message") do
@@ -216,7 +233,8 @@ else
                 else
                     nil
                 end
-            index_data = IndexData.new(index_items.to_a, about_page_item)
+            index_title = (index_title or "Documents")
+            index_data = IndexData.new(index_items.to_a, about_page_item, index_title)
             index_page = index_page_tpl.result(index_data.get_binding)
             File.write("#{dest_dir}/index.html", index_page)
             puts "Index file generated." if verbose
