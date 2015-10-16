@@ -308,6 +308,10 @@ ul.item-list {
     text-decoration: none;
 }
 
+.page-meta a:visited {
+    color: #0000EE;
+}
+
 .page-meta .tool {
     display:inline-block;
 }
