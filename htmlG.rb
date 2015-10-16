@@ -73,7 +73,7 @@ Usage: htmlG.rb [options]
     blog_mode = v
   end
 
-  opts.on("--index-title TITLE", "When runing in batch mode, set the title of index page.") do |t|
+  opts.on("--index-title TITLE", "When running in batch mode, set the title of index page. (default: Index)") do |t|
     index_title = t
   end
 
@@ -208,7 +208,7 @@ else
         if (not to_docx) then
             class IndexData
                 attr_accessor :title,:item_list,:about_item
-                def initialize(items, about_item, title = "Documents")
+                def initialize(items, about_item, title = "Index")
                     @item_list = items
                     @about_item = about_item
                     @title = title
@@ -233,7 +233,7 @@ else
                 else
                     nil
                 end
-            index_title = (index_title or "Documents")
+            index_title = (index_title or "Index")
             index_data = IndexData.new(index_items.to_a, about_page_item, index_title)
             index_page = index_page_tpl.result(index_data.get_binding)
             File.write("#{dest_dir}/index.html", index_page)
