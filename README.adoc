@@ -15,12 +15,13 @@ Glue script to translate `markdown` or `asciidoc` documents to `html` or `docx`.
 === Usage
 [source,console]
 ----
-Usage: htmlG.rb [options] file  <1> 
-            -- process single file 
-Usage: htmlG.rb [options]  <2> 
-            -- process all markdown and asciidoc files under folder
+Generate html file(s) from markdown or asciidoc.
+Usage: htmlG.rb [options] file  <1>
+            process single file
+Usage: htmlG.rb [options]   <2> 
+            batch mode, process all markdown and asciidoc files under folder
 
-    -v, --[no-]verbose               Run verbosely
+Common options:
     -d, --destination-dir DIR        destination output directory (default: ./_build)
     -b, --base-dir DIR               base directory containing files to process (default: .)
     -w, --[no-]word                  generate docx instead of html
@@ -30,6 +31,8 @@ Usage: htmlG.rb [options]  <2>
         --pandoc-opts OPTIONS        add more options for underlying markdown processor 'pandoc'
                                       can be used to overwrite default options.
                                       Must be quoted if has spaces like "--toc -S"
+
+Batch mode specified options:
         --[no-]force                 when running in batch mode, ignore build log and reprocess all files
         --[no-]blog                  when running in batch mode, activate blog mode
                                         when generating index page:
@@ -37,6 +40,10 @@ Usage: htmlG.rb [options]  <2>
                                         2. Handle 'xxxx-xx-xx-about.adoc' specially:
                                              A 'about' link will be added to footer
                                              instead of being included on article list
+        --index-title TITLE          When running in batch mode, set the title of index page. (default: Index)
+
+Other options:
+    -v, --[no-]verbose               Run verbosely
     -h, --help                       Show this message
         --version                    Show version info
 ----
